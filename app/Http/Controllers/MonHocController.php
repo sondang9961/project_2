@@ -1,7 +1,6 @@
 <?php
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Input;
 use Request;
 use Response;
 use App\Model\MonHoc;
@@ -12,36 +11,53 @@ class MonHocController extends Controller
 	private $folder = 'mon_hoc';
 	public function view_all()
 	{
-		$array_khoa_hoc = KhoaHoc::all();
+		$trang = Request::get('trang');
 
-		$array_mon_hoc = MonHoc::query()
-							->join('khoa_hoc','mon_hoc.ma_khoa_hoc','=','khoa_hoc.ma_khoa_hoc')
-							->orderBy('ma_mon_hoc','desc')->paginate(5);
-		$search = Input::get('search');
-		if($search != ''){
-			$array_mon_hoc = MonHoc::query()
-								->join('khoa_hoc','mon_hoc.ma_khoa_hoc','=','khoa_hoc.ma_khoa_hoc')
-								->where('ten_mon_hoc','LIKE','%'.$search.'%')
-								->orWhere('ten_khoa_hoc','LIKE','%'.$search.'%')
-								->orderBy('ma_mon_hoc','desc')
-								->paginate(5);
-			$array_mon_hoc->appends(array('search' => Input::get('search')));
-			if(count($array_mon_hoc) > 0){
-				return view("$this->folder.view_all",compact('array_mon_hoc','array_khoa_hoc'));
-			}
-			$message = "Không tìm thấy môn, khóa học!";
-			return view("$this->folder.view_all",compact('message','array_mon_hoc','array_khoa_hoc'));
+		if(empty($trang)){
+			$trang = 1;
 		}
-		else {
-			return view("$this->folder.view_all",compact('array_mon_hoc','array_khoa_hoc'));
-		}
+		
+		$limit = 5;
+		$mon_hoc = new MonHoc();
+		$mon_hoc->offset = ($trang - 1)*$limit;
+		$mon_hoc->limit = $limit;
+		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$mon_hoc->ma_khoa_hoc = $ma_khoa_hoc;
+		$array_mon_hoc = $mon_hoc->get_all();
+
+		$count_trang = ceil($mon_hoc->count());
+
+		$khoa_hoc = new KhoaHoc();
+		$array_khoa_hoc = $khoa_hoc->get_all();
+
+		if ($trang > 1) $prev = $trang - 1; else $prev = 0;
+		if ($trang < $count_trang) $next = $trang + 1; else $next = 0;
+		if ($trang <= 3) $startpage = 1;
+		else if ($trang == $count_trang) $startpage = $trang - 6;
+		else if ($trang == $count_trang - 2) $startpage = $trang - 5;
+		else if ($trang == $count_trang - 1) $startpage = $trang - 4;
+		else $startpage = $trang - 3;
+		$endpage = $startpage + 6;
+
+		return view ("$this->folder.view_all",[
+			'array_mon_hoc' => $array_mon_hoc,
+			'array_khoa_hoc' => $array_khoa_hoc,
+			'count_trang' => $count_trang,
+			'ma_khoa_hoc' => $ma_khoa_hoc,
+			'trang' => $trang,
+			'mon_hoc' => $mon_hoc,
+			'prev' => $prev,
+			'next' => $next,
+			'startpage' => $startpage,
+			'endpage' => $endpage
+		]);
 	}
 
 	public function get_mon_hoc_by_khoa_hoc()
 	{
-
-		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
-		$array_mon_hoc = MonHoc::get_all_by_khoa_hoc($ma_khoa_hoc);
+		$mon_hoc = new MonHoc();
+		$mon_hoc->ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$array_mon_hoc = $mon_hoc->get_all_by_khoa_hoc();
 		return $array_mon_hoc;
 	}
 
@@ -50,39 +66,32 @@ class MonHocController extends Controller
 		$mon_hoc = new MonHoc();
 		$mon_hoc->ten_mon_hoc = Request::get('ten_mon_hoc');
 		$mon_hoc->ma_khoa_hoc = Request::get('ma_khoa_hoc');
-
-		$count = MonHoc::where('ten_mon_hoc','=',$mon_hoc->ten_mon_hoc)
-						->where('ma_khoa_hoc','=',$mon_hoc->ma_khoa_hoc)
-						->count();
-		if($count == 0) {
-			$mon_hoc->save();
+		$array_mon_hoc = $mon_hoc->check_insert();
+		if(count($array_mon_hoc) == 0) {
+			$mon_hoc->insert();
 			return redirect()->route("$this->folder.view_all")->with('success','Đã thêm');
 		}
 		return redirect()->route("$this->folder.view_all")->with('error','Môn học đã tồn tại!');
 		
 	}
 
-	public function process_update()
+	public function process_update($ma_mon_hoc)
  	{
- 		$ma_mon_hoc = Request::get('ma_mon_hoc');
- 		$ten_mon_hoc = Request::get('ten_mon_hoc');
-		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
+ 		$mon_hoc = new MonHoc();
+ 		$mon_hoc->ma_mon_hoc = Request::get('ma_mon_hoc');
+ 		$mon_hoc->ten_mon_hoc = Request::get('ten_mon_hoc');
+		$mon_hoc->ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$mon_hoc->updateMonHoc();
 
-		$count = MonHoc::where('ten_mon_hoc','=',$ten_mon_hoc)
-						->where('ma_khoa_hoc','=',$ma_khoa_hoc)
-						->count();
-		if($count == 0) {
-			MonHoc::where('ma_mon_hoc','=',$ma_mon_hoc)
-					->update(['ten_mon_hoc' => $ten_mon_hoc,'ma_khoa_hoc' => $ma_khoa_hoc]);
-			return redirect()->route("$this->folder.view_all")->with('success','Cập nhật thành công');
-		}
-		return redirect()->route("$this->folder.view_all")->with('error','Môn học đã tồn tại!');
+		return redirect()->route("$this->folder.view_all");
  	}	
 
  	public function get_one()
 	{
-		$ma_mon_hoc = Request::get('ma_mon_hoc');
-		$mon_hoc = MonHoc::where('ma_mon_hoc','=',$ma_mon_hoc)->first();
+		$mon_hoc = new MonHoc();
+		$mon_hoc->ma_mon_hoc = Request::get('ma_mon_hoc');
+		$mon_hoc = $mon_hoc->get_one();
+		
 		return Response::json($mon_hoc);
 	}
 }

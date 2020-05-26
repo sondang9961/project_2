@@ -1,5 +1,4 @@
 @extends('layer.master')
-@section('pageTitle', 'Đổi mật khẩu')
 @section('content')
 	<div class="main-content">
         <div class="container-fluid">
@@ -50,7 +49,6 @@
 	function validate(){
 		var new_password = document.getElementById('new_password').value;
 		var errPass = document.getElementById('errPass');
-
 		if(new_password.length == 0){
 			errPass.innerHTML="Chưa nhập mật khẩu mới";
 		}

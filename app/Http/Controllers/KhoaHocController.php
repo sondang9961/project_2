@@ -1,7 +1,6 @@
 <?php
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Input;
 use Request;
 use Response;
 use App\Model\KhoaHoc;
@@ -9,63 +8,77 @@ use App\Model\KhoaHoc;
 class KhoaHocController extends Controller
 {
 	private $folder = 'khoa_hoc';
-	public function view_all(Request $req)
+	public function view_all()
 	{
-		$array_khoa_hoc = KhoaHoc::query()->orderBy('ma_khoa_hoc','desc')->paginate(2);
+		$trang = Request::get('trang');
 
-		$ten_khoa_hoc = Input::get('ten_khoa_hoc');
-		if($ten_khoa_hoc != '' ){
-			$array_khoa_hoc = KhoaHoc::where('ten_khoa_hoc','LIKE','%'.$ten_khoa_hoc.'%')
-									->orderBy('ma_khoa_hoc','desc')
-									->paginate(1);
-			$array_khoa_hoc->appends(array('ten_khoa_hoc' => Input::get('ten_khoa_hoc')));
-			if(count($array_khoa_hoc) > 0){
-				return view("$this->folder.view_all",compact('array_khoa_hoc'));
-			}
+		if(empty($trang)){
+			$trang = 1;
+		}
+		
+		$limit = 5;
+		$khoa_hoc = new KhoaHoc();
+		$khoa_hoc->offset = ($trang - 1)*$limit;
+		$khoa_hoc->limit = $limit;
+		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$khoa_hoc->ma_khoa_hoc = $ma_khoa_hoc;
+		$array_khoa_hoc = $khoa_hoc->get_all();
+		$array_all_khoa_hoc = $khoa_hoc->get_all_khoa_hoc();
 
-			$message = "Không tìm thấy khóa học!";
-			return view("$this->folder.view_all",compact('message'));
-		}
-		else {
-			return view("$this->folder.view_all",compact('array_khoa_hoc'));
-		}
+		$count_trang = ceil($khoa_hoc->count());
+
+		if ($trang > 1) $prev = $trang - 1; else $prev = 0;
+		if ($trang < $count_trang) $next = $trang + 1; else $next = 0;
+		if ($trang <= 3) $startpage = 1;
+		else if ($trang == $count_trang) $startpage = $trang - 6;
+		else if ($trang == $count_trang - 2) $startpage = $trang - 5;
+		else if ($trang == $count_trang - 1) $startpage = $trang - 4;
+		else $startpage = $trang - 3;
+		$endpage = $startpage + 6;
+
+		return view ("$this->folder.view_all",[
+			'array_khoa_hoc' => $array_khoa_hoc,
+			'array_all_khoa_hoc' => $array_all_khoa_hoc,
+			'ma_khoa_hoc' => $ma_khoa_hoc,
+			'count_trang' => $count_trang,
+			'trang' => $trang,
+			'prev' => $prev,
+			'next' => $next,
+			'startpage' => $startpage,
+			'endpage' => $endpage
+		]);
 	}
 
 	public function process_insert()
 	{
 		$khoa_hoc = new KhoaHoc();
 		$khoa_hoc->ten_khoa_hoc = Request::get('ten_khoa_hoc');
-
-		$count = KhoaHoc::where('ten_khoa_hoc','=',$khoa_hoc->ten_khoa_hoc)->count();
-
-		if($count == 0){
-			$khoa_hoc->save();
+		$array_khoa_hoc = $khoa_hoc->check_insert();
+		if(count($array_khoa_hoc) == 0){
+			$khoa_hoc->insert();
 			return redirect()->route("$this->folder.view_all")->with('success', 'Đã thêm');
 		}
 		//điều hướng
 		return redirect()->route("$this->folder.view_all")->with('error', 'Khóa học đã tồn tại');
 	}
 
-	public function process_update()
+	
+	public function process_update($ma_khoa_hoc)
 	{
-		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
-		$ten_khoa_hoc = Request::get('ten_khoa_hoc');
+		$khoa_hoc = new KhoaHoc();
+		$khoa_hoc->ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$khoa_hoc->ten_khoa_hoc = Request::get('ten_khoa_hoc');
+		$khoa_hoc->updateKhoaHoc();
 
-		$count = KhoaHoc::where('ten_khoa_hoc','=',$ten_khoa_hoc)->count();
-
-		if($count == 0){
-			KhoaHoc::where('ma_khoa_hoc','=',$ma_khoa_hoc)
-					->update(['ten_khoa_hoc' => $ten_khoa_hoc]);
-			return redirect()->route("$this->folder.view_all")->with('upd_success', 'Cập nhật thành công');
-		}
 		//điều hướng
-		return redirect()->route("$this->folder.view_all")->with('upd_error', 'Khóa học đã tồn tại');
+		return redirect()->route("$this->folder.view_all");
 
 	}
 	public function get_one()
 	{
-		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
-		$khoa_hoc = KhoaHoc::where('ma_khoa_hoc','=',$ma_khoa_hoc)->first();
+		$khoa_hoc = new KhoaHoc();
+		$khoa_hoc->ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$khoa_hoc = $khoa_hoc->get_one();
 		
 		return Response::json($khoa_hoc);
 	}

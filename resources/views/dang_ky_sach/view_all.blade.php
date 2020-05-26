@@ -1,5 +1,4 @@
 @extends('layer.master')
-@section('pageTitle', 'Quản lý đăng ký sách')
 @push('css')
 <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.7/css/select2.min.css" rel="stylesheet" />
 @endpush
@@ -19,9 +18,9 @@
 								<option disabled selected value="">--Chọn khóa học--</option>
 								@foreach ($array_khoa_hoc as $khoa_hoc)
 									<option value="{{$khoa_hoc->ma_khoa_hoc}}"
-										@if ($khoa_hoc->ma_khoa_hoc == $ma_khoa_hoc)
+									{{-- 	@if ($khoa_hoc->ma_khoa_hoc == $ma_khoa_hoc)
 											selected 
-										@endif
+										@endif --}}
 										>
 										{{$khoa_hoc->ten_khoa_hoc}}
 									</option>
@@ -303,7 +302,6 @@
 	$(document).ready(function() {
 		$("#select_tinh_trang").select2();
 		$("#select_khoa_hoc").select2();
-
 		$("#select_khoa_hoc").change(function(){
 			$("#select_mon_hoc").val(null).trigger('change');
 			$("#select_mon_hoc").attr("disabled", false);
@@ -334,7 +332,6 @@
 		$("#select_sinh_vien").change(function(){
 			checkButton();
 		})
-
 		$("#select_mon_hoc").select2({
 			ajax: {
 				url: '{{route('get_mon_hoc_by_khoa_hoc')}}',
@@ -448,7 +445,6 @@
 				}
 			}
 		});
-
 		//Search
 		$("#search_khoa_hoc").select2();
 		$("#search_khoa_hoc").change(function(){
@@ -469,7 +465,6 @@
 			$("#button").attr("disabled", false);
 		})
 	
-
 		$("#search_mon_hoc").select2({
 			ajax: {
 				url: '{{route('get_mon_hoc_by_khoa_hoc')}}',
@@ -536,8 +531,6 @@
 				}
 			}
 		});
-
-
 	});
 </script>
 @endpush

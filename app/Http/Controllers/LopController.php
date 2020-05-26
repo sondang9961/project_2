@@ -1,8 +1,6 @@
 <?php
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Input;
-use Sofa\Eloquence\Subquery;
 use Request;
 use Response;
 use App\Model\Lop;
@@ -19,39 +17,47 @@ class LopController extends Controller
 	private $folder = 'lop';
 	public function view_all()
 	{
-		$array_khoa_hoc = KhoaHoc::all();
-		$countSinhVien = new \Sofa\Eloquence\Subquery(
-		    SinhVien::from('sinh_vien')
-		        ->selectRaw('count(*)')->whereRaw('ma_lop = lop.ma_lop'), 
-		    'sy_so'
-		);
+		$trang = Request::get('trang');
 
-		$array_lop = Lop::from('lop')
-					        ->select('*', $countSinhVien)
-					        ->addBinding($countSinhVien->getBindings(), 'select')
-					        ->join('khoa_hoc','lop.ma_khoa_hoc','=','khoa_hoc.ma_khoa_hoc')
-					        ->orderBy('ma_lop','desc')
-							->paginate(5);
-		$search = Input::get('search');
-		if($search != ''){
-			$array_lop = Lop::from('lop')
-				        ->select('*', $countSinhVien)
-				        ->addBinding($countSinhVien->getBindings(), 'select')
-				        ->join('khoa_hoc','lop.ma_khoa_hoc','=','khoa_hoc.ma_khoa_hoc')
-						->where('ten_lop','LIKE','%'.$search.'%')
-						->orWhere('ten_khoa_hoc','LIKE','%'.$search.'%')
-						->orderBy('ma_lop','desc')
-						->paginate(5);
-			$array_lop->appends(array('search' => Input::get('search')));
-			if(count($array_lop) > 0){
-				return view("$this->folder.view_all",compact('array_lop','array_khoa_hoc'));
-			}
-			$message = "Không tìm thấy lớp, khóa học!";
-			return view("$this->folder.view_all",compact('message','array_lop','array_khoa_hoc'));
+		if(empty($trang)){
+			$trang = 1;
 		}
-		else {
-			return view("$this->folder.view_all",compact('array_lop','array_khoa_hoc'));
-		}
+		
+		$limit = 5;
+		$lop = new Lop();
+		$lop->offset = ($trang - 1)*$limit;
+		$lop->limit = $limit;
+		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$lop->ma_khoa_hoc = $ma_khoa_hoc;
+		$array_lop = $lop->get_all();
+
+		$count_trang = ceil($lop->count());
+
+		$khoa_hoc = new KhoaHoc();
+		$array_khoa_hoc = $khoa_hoc->get_all();
+
+		if ($trang > 1) $prev = $trang - 1; else $prev = 0;
+		if ($trang < $count_trang) $next = $trang + 1; else $next = 0;
+		if ($trang <= 3) $startpage = 1;
+		else if ($trang == $count_trang) $startpage = $trang - 6;
+		else if ($trang == $count_trang - 2) $startpage = $trang - 5;
+		else if ($trang == $count_trang - 1) $startpage = $trang - 4;
+		else $startpage = $trang - 3;
+		$endpage = $startpage + 6;	
+
+		return view ("$this->folder.view_all",[
+			'array_lop' => $array_lop,
+			'array_khoa_hoc' => $array_khoa_hoc,
+			'count_trang' => $count_trang,
+			'ma_khoa_hoc' => $ma_khoa_hoc,
+			'trang' => $trang,
+			'lop' => $lop,
+			'prev' => $prev,
+			'next' => $next,
+			'startpage' => $startpage,
+			'endpage' => $endpage
+		]);
+		
 	}
 	
 	public function get_lop_by_khoa_hoc()
@@ -67,36 +73,43 @@ class LopController extends Controller
 		$lop = new Lop();
 		$lop->ten_lop = Request::get('ten_lop');
 		$lop->ma_khoa_hoc = Request::get('ma_khoa_hoc');
-		
-		$count = Lop::where('ten_lop','=',$lop->ten_lop)->count();
-
-		if($count == 0) {
-			$lop->save();
-			return redirect()->route("$this->folder.view_all")->with('success','Đã thêm');
+		$array_lop = $lop->check_insert();
+		if (count($array_lop) == 0) {
+			$lop->insert();
+			return redirect()->route("$this->folder.view_all")->with('success', 'Đã thêm');
 		}
-		return redirect()->route("$this->folder.view_all")->with('error','Lớp đã tồn tại!');
+		return redirect()->route("$this->folder.view_all")->with('error', 'Lớp đã tồn tại !'); 
+		
 	}
 
-	public function process_update()
+	public function process_update($ma_lop)
 	{
-		$ma_lop = Request::get('ma_lop');
-		$ten_lop = Request::get('ten_lop');
-		$ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$lop = new Lop();
+		$lop->ma_lop = Request::get('ma_lop');
+		$lop->ten_lop = Request::get('ten_lop');
+		$lop->ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$lop->updateLop();
 
-		$count = Lop::where('ten_lop','=',$ten_lop)->count();
+		//điều hướng
+		return redirect()->route("$this->folder.view_all"); 
+	}
 
-		if($count == 0) {
-			Lop::where('ma_lop','=',$ma_lop)
-					->update(['ten_lop' => $ten_lop,'ma_khoa_hoc' => $ma_khoa_hoc]);
-			return redirect()->route("$this->folder.view_all")->with('success','Cập nhật thành công');
-		} 
-		return redirect()->route("$this->folder.view_all")->with('error','Tên lớp bị trùng!');
+	public function process_search()
+	{
+		$lop = new Lop();
+		$lop->ma_khoa_hoc = Request::get('ma_khoa_hoc');
+		$array_search_lop = $lop->process_search();
+
+		//điều hướng
+		return redirect()->route("$this->folder.view_all"); 
 	}
 
 	public function get_one()
 	{
-		$ma_lop = Request::get('ma_lop');
-		$lop = Lop::where('ma_lop','=',$ma_lop)->first();
+		$lop = new Lop();
+		$lop->ma_lop = Request::get('ma_lop');
+		$lop = $lop->get_one();
+		
 		return Response::json($lop);
 	}
 }
